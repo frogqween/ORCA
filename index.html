@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>ORANGECAP</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Fullscreen video background -->
+  <div id="video-bg" aria-hidden="true">
+    <video id="bgVideo1" class="bg-video active" autoplay muted playsinline></video>
+    <video id="bgVideo2" class="bg-video" muted playsinline></video>
+  </div>
+
+  <!-- Orientation gate for mobile -->
+  <div id="orientation-gate" class="gate hidden">
+    <div class="gate-card">
+      <p>tilt phone horizontal to open website</p>
+    </div>
+  </div>
+
+  <!-- Main fixed-stage wrapper -->
+  <div id="stage-wrap">
+    <div id="stage" class="stage" style="--design-w:3840; --design-h:2160;">
+      <!-- Desk overlay -->
+      <img class="desk-overlay" src="assets/squared desk.png" alt="Desk" data-x="438" data-y="65" data-w="2965" data-h="2029" />
+
+      <!-- Clickable items (Figma coordinates) -->
+      	<a id="musicLink" class="hotspot"
+         data-x="778" data-y="258" data-w="728" data-h="796"
+         href="#music" aria-label="Music">
+        <img src="assets/Music.png" alt="" />
+      </a>
+
+      	<a id="videosLink" class="hotspot"
+         data-x="1543" data-y="460" data-w="985" data-h="677"
+         href="#videos" aria-label="Videos">
+        <img src="assets/Videos.png" alt="" />
+      </a>
+
+      	<a id="ticketsLink" class="hotspot"
+         data-x="2597" data-y="748" data-w="592" data-h="512"
+         href="https://www.instagram.com/orangecapstudios/" target="_blank" rel="noopener"
+         aria-label="Tickets">
+        <img src="assets/Tickets.png" alt="" />
+      </a>
+
+      	<a id="shopLink" class="hotspot"
+         data-x="2797" data-y="237" data-w="464" data-h="373"
+         href="https://orangecap-studios.myshopify.com/password" target="_blank" rel="noopener"
+         aria-label="Shop">
+        <img src="assets/Shop.png" alt="" />
+      </a>
+
+      <!-- Artists now opens an overlay (no navigation) -->
+      	<a id="artistsLink" class="hotspot"
+         data-x="648" data-y="1109" data-w="701" data-h="863"
+         href="#artists" aria-label="Artists">
+        <img src="assets/Artists.png" alt="" />
+      </a>
+
+      	<a id="documentLink" class="hotspot"
+         data-x="1603" data-y="1338" data-w="706" data-h="532"
+         href="#document" aria-label="Document">
+        <img src="assets/Document.png" alt="" />
+      </a>
+
+      	<a id="aboutLink" class="hotspot"
+         data-x="2675" data-y="1398" data-w="492" data-h="533"
+         href="#about" aria-label="About">
+        <img src="assets/About.png" alt="" />
+      </a>
+
+      	<a id="frogQueenLink" class="hotspot"
+         data-x="2388" data-y="108" data-w="140" data-h="150"
+         href="#frog" aria-label="Frog Queen">
+        <img src="assets/Frog Queen.png" alt="" />
+      </a>
+    </div>
+  </div>
+
+  <!-- About overlay (transparent card) -->
+  <div id="aboutOverlay" class="overlay hidden" aria-hidden="true">
+    <div class="overlay-card about-card">
+      <button class="close-btn" data-close aria-label="Close about">&times;</button>
+      <img src="assets/About Page.png" alt="About" class="about-sheet" />
+    </div>
+  </div>
+
+  <!-- Music overlay -->
+  <div id="musicOverlay" class="overlay hidden" aria-hidden="true">
+    <div class="overlay-card overlay-wide">
+      <button class="close-btn" data-close aria-label="Close music">&times;</button>
+      <h2 class="overlay-title">Music</h2>
+
+      <div id="musicFilters" class="chipbar">
+        <button class="chip active" data-filter="all">All</button>
+        <div class="chip-sep"></div>
+        <div id="artistChips" class="chip-group"></div>
+        <div class="chip-sep"></div>
+        <button class="chip" data-type="Single">Single</button>
+        <button class="chip" data-type="EP">EP</button>
+        <button class="chip" data-type="Album">Album</button>
+      </div>
+
+      <div id="musicGrid" class="music-grid"></div>
+      <div id="musicError" class="muted hidden">Could not load music list.</div>
+    </div>
+  </div>
+
+  <!-- Videos overlay -->
+  <div id="videosOverlay" class="overlay hidden" aria-hidden="true">
+    <div class="overlay-card overlay-wide">
+      <button class="close-btn" data-close aria-label="Close videos">&times;</button>
+      <h2 class="overlay-title">Videos</h2>
+      <p class="muted">Add your videos content here (iframe or custom HTML). The site stays on one page.</p>
+    </div>
+  </div>
+
+  <!-- Document overlay -->
+  <div id="documentOverlay" class="overlay hidden" aria-hidden="true">
+    <div class="overlay-card overlay-wide">
+      <button class="close-btn" data-close aria-label="Close document">&times;</button>
+      <h2 class="overlay-title">Document</h2>
+      <p class="muted">Add your camera/doc content here. Opens after the camera animation.</p>
+    </div>
+  </div>
+
+  <!-- Artists overlay (carousel) -->
+  <div id="artistsOverlay" class="overlay hidden" aria-hidden="true">
+    <div class="overlay-card artists-card">
+      <button class="close-btn" data-close aria-label="Close artists">&times;</button>
+      <h2 class="overlay-title">Artists</h2>
+
+      <div id="artistsCarousel" class="carousel" aria-label="Artists carousel">
+        <div class="carousel-track" id="artistsTrack">
+          <!-- JS populates slides -->
+        </div>
+      </div>
+
+      <div class="carousel-help muted">drag to scroll • use mouse wheel • ←/→ keys</div>
+    </div>
+  </div>
+
+  <!-- Lottie popup overlay (plays on click, then opens modal) -->
+  <div id="fx-overlay" aria-hidden="true">
+    <div id="fx-lottie"></div>
+  </div>
+
+  <!-- Audio: Frog Queen -->
+  <audio id="frogAudio" preload="auto" src="assets/frog-queen.mp3"></audio>
+  
+  <!-- Background music -->
+  <audio id="bgMusic" preload="auto" src="assets/Inu_Inu_Chiptune.mp3" loop></audio>
+  
+  <!-- Music player controls -->
+  <div id="musicPlayer" class="music-player">
+    <button id="speakerBtn" class="speaker-btn muted" aria-label="Toggle music">
+      <svg class="speaker-icon" viewBox="0 0 24 24" fill="currentColor">
+        <path class="speaker-base" d="M3 9v6h4l5 5V4L7 9H3z"/>
+        <path class="speaker-wave-1" d="M14 8.46v7.07c1.38-.49 2.5-1.84 2.5-3.53S15.38 8.95 14 8.46z"/>
+        <path class="speaker-wave-2" d="M16.5 6v12c1.66-1.13 2.5-3.04 2.5-6S17.66 7.13 16.5 6z"/>
+        <path class="speaker-wave-3" d="M18.5 4v16c2.79-1.87 4-5.41 4-8s-1.21-6.13-4-8z"/>
+        <path class="speaker-mute-x" d="M14.5 9l2 2 2-2 1.5 1.5-2 2 2 2-1.5 1.5-2-2-2 2-1.5-1.5 2-2-2-2z" opacity="0"/>
+      </svg>
+    </button>
+    <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" value="0" aria-label="Volume">
+  </div>
+
+  <!-- Lottie-web -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <!-- App JS -->
+  <script src="script.js"></script>
+</body>
+</html>
