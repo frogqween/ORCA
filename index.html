@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>ORANGECAP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -13,12 +16,6 @@
     <video id="bgVideo2" class="bg-video" muted playsinline></video>
   </div>
 
-  <!-- Orientation gate for mobile -->
-  <div id="orientation-gate" class="gate hidden">
-    <div class="gate-card">
-      <p>tilt phone horizontal to open website</p>
-    </div>
-  </div>
 
   <!-- Main fixed-stage wrapper -->
   <div id="stage-wrap">
@@ -28,7 +25,7 @@
 
       <!-- Clickable items (Figma coordinates) -->
       	<a id="musicLink" class="hotspot"
-         data-x="778" data-y="258" data-w="728" data-h="796"
+         data-x="680" data-y="220" data-w="728" data-h="796"
          href="#music" aria-label="Music">
         <img src="assets/Music.png" alt="" />
       </a>
@@ -72,6 +69,13 @@
         <img src="assets/About.png" alt="" />
       </a>
 
+      	<!-- Guest Book hotspot -->
+      	<a id="guestBookLink" class="hotspot"
+         data-x="1418" data-y="191" data-w="879" data-h="56"
+         href="#guestbook" aria-label="Guest Book">
+        <img src="assets/guest book .png" alt="Guest Book" />
+      </a>
+
       	<a id="frogQueenLink" class="hotspot"
          data-x="2388" data-y="108" data-w="140" data-h="150"
          href="#frog" aria-label="Frog Queen">
@@ -88,20 +92,114 @@
     </div>
   </div>
 
+  <!-- Guest Book overlay (interactive book) -->
+  <div id="guestBookOverlay" class="overlay hidden" aria-hidden="true">
+    <div class="overlay-card guestbook-card">
+      <button class="close-btn" data-close aria-label="Close guest book">&times;</button>
+      <div class="guestbook-wrap">
+        <img src="assets/guest book .png" alt="Guest Book" class="guestbook-sheet" />
+        <div class="book-overlay">
+          <div class="open-book" id="guestBook">
+            <!-- Left page -->
+            <div class="book-page left-page">
+              <div class="page-content">
+                <!-- Mailing list section (top) -->
+                <div class="mailing-section">
+                  <h3 class="book-heading">Join ORCA mailing list</h3>
+                  <form id="mailingForm" class="book-form" autocomplete="on">
+                    <input type="hidden" name="project" value="ORCA" />
+                    <div class="form-group">
+                      <label>Name</label>
+                      <input type="text" name="name" placeholder="your name" required />
+                    </div>
+                    <div class="form-group">
+                      <label>Email</label>
+                      <input type="email" name="email" placeholder="you@example.com" required />
+                    </div>
+                    <button type="submit" class="book-btn">Sign up</button>
+                    <div id="mailingStatus" class="status muted" role="status"></div>
+                  </form>
+                </div>
+
+                <!-- Guest book sign section (just under) -->
+                <div class="guestbook-section">
+                  <h3 class="book-heading">Sign the guestbook</h3>
+                  <form id="guestForm" class="book-form">
+                    <div class="form-group">
+                      <label>Name</label>
+                      <input type="text" name="name" placeholder="your name" required />
+                    </div>
+                    <div class="form-group">
+                      <label>Cute note</label>
+                      <textarea name="note" rows="4" maxlength="500" placeholder="leave a cute note..." required></textarea>
+                    </div>
+                    <button type="submit" class="book-btn">Add note</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right page -->
+            <div class="book-page right-page">
+              <div class="page-content">
+                <h3 class="book-heading">Guestbook notes</h3>
+                <!-- Filter controls -->
+                <div class="filter-controls">
+                  <span class="filter-label">Sort by:</span>
+                  <div class="filter-buttons">
+                    <button class="filter-btn active" data-sort="recent">Most recent</button>
+                    <button class="filter-btn" data-sort="oldest">Oldest</button>
+                    <button class="filter-btn" data-sort="liked">Most liked</button>
+                  </div>
+                </div>
+
+                <!-- Comments display -->
+                <div id="commentsDisplay" class="comments-area" aria-live="polite">
+                  <!-- Comments will be populated here -->
+                </div>
+
+                <!-- Page navigation -->
+                <div class="page-navigation">
+                  <button id="prevPage" class="nav-btn" aria-label="Previous page">←</button>
+                  <span id="pageInfo" class="page-info">Page 1</span>
+                  <button id="nextPage" class="nav-btn" aria-label="Next page">→</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Music overlay -->
   <div id="musicOverlay" class="overlay hidden" aria-hidden="true">
     <div class="overlay-card overlay-wide">
-      <button class="close-btn" data-close aria-label="Close music">&times;</button>
-      <h2 class="overlay-title">Music</h2>
+      <button class="close-btn" data-close aria-label="Close music">×</button>
+      <div class="music-header">
+        <h2 class="overlay-title">Music</h2>
+        <div class="artist-dropdown-container">
+          <button class="artist-dropdown-btn" id="artistDropdownBtn">
+            <span class="dropdown-text">All Artists</span>
+            <svg class="dropdown-arrow" width="12" height="8" viewBox="0 0 12 8">
+              <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" stroke-width="2" fill="none"/>
+            </svg>
+          </button>
+          <div class="artist-dropdown-menu" id="artistDropdownMenu">
+            <button class="dropdown-item active" data-artist="all">All</button>
+            <!-- Artist items will be populated here by JavaScript -->
+          </div>
+        </div>
+      </div>
 
       <div id="musicFilters" class="chipbar">
-        <button class="chip active" data-filter="all">All</button>
-        <div class="chip-sep"></div>
         <div id="artistChips" class="chip-group"></div>
         <div class="chip-sep"></div>
-        <button class="chip" data-type="Single">Single</button>
-        <button class="chip" data-type="EP">EP</button>
-        <button class="chip" data-type="Album">Album</button>
+        <div class="type-filters">
+          <button class="chip" data-type="Single">Single</button>
+          <button class="chip" data-type="EP">EP</button>
+          <button class="chip" data-type="Album">Album</button>
+        </div>
       </div>
 
       <div id="musicGrid" class="music-grid"></div>
@@ -118,14 +216,68 @@
     </div>
   </div>
 
-  <!-- Document overlay -->
+  <!-- Document overlay with camera interface -->
   <div id="documentOverlay" class="overlay hidden" aria-hidden="true">
-    <div class="overlay-card overlay-wide">
-      <button class="close-btn" data-close aria-label="Close document">&times;</button>
-      <h2 class="overlay-title">Document</h2>
-      <p class="muted">Add your camera/doc content here. Opens after the camera animation.</p>
+    <div class="camera-stage" style="--design-w:2965; --design-h:2029;">
+      <!-- Camera content area -->
+      <div class="camera-content">
+        <!-- Combined YouTube and Year selector UI -->
+        <div class="document-viewer">
+          <div class="viewer-buttons">
+            <button class="viewer-btn active" data-view="youtube">YouTube</button>
+            <button class="viewer-btn" data-year="2017">2017</button>
+            <button class="viewer-btn" data-year="2018">2018</button>
+            <button class="viewer-btn" data-year="2019">2019</button>
+            <button class="viewer-btn" data-year="2020">2020</button>
+            <button class="viewer-btn" data-year="2021">2021</button>
+            <button class="viewer-btn" data-year="2022">2022</button>
+            <button class="viewer-btn" data-year="2023">2023</button>
+            <button class="viewer-btn" data-year="2024">2024</button>
+            <button class="viewer-btn" data-year="2025">2025</button>
+          </div>
+
+          <!-- YouTube player view -->
+          <div class="viewer-content" id="youtube-view">
+            <div class="video-container">
+              <div id="youtube-player"></div>
+            </div>
+            <div class="playlist-nav">
+              <button class="nav-btn prev-btn" id="prevVideo" aria-label="Previous video">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+                </svg>
+              </button>
+              <div class="video-info">
+                <div class="video-title" id="videoTitle">Loading...</div>
+                <div class="video-index" id="videoIndex">1 / ?</div>
+              </div>
+              <button class="nav-btn next-btn" id="nextVideo" aria-label="Next video">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Year content view -->
+          <div class="viewer-content" id="year-view" style="display: none;">
+            <div class="year-content">
+              <p>Select a year to view content...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Camera back overlay -->
+      <img class="camera-overlay" 
+           src="assets/Camera Back.png" 
+           alt="Camera interface"
+           draggable="false" />
+
+      <!-- Close button -->
+      <button class="close-btn camera-close" data-close aria-label="Close document">&times;</button>
     </div>
-  </div>
+  </div
 
   <!-- Artists overlay (carousel) -->
   <div id="artistsOverlay" class="overlay hidden" aria-hidden="true">
@@ -170,6 +322,8 @@
 
   <!-- Lottie-web -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <!-- YouTube API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
   <!-- App JS -->
   <script src="script.js"></script>
 </body>

@@ -2,16 +2,7 @@
 const DESIGN_W = 3840;
 const DESIGN_H = 2160;
 
-/* ===== orientation gate ===== */
-function checkOrientationGate() {
-  const gate = document.getElementById('orientation-gate');
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  const isPortrait = window.innerHeight > window.innerWidth;
-  if (isMobile && isPortrait) gate.classList.remove('hidden');
-  else gate.classList.add('hidden');
-}
-window.addEventListener('resize', checkOrientationGate);
-checkOrientationGate();
+/* ===== orientation gate removed - site now works in portrait mode ===== */
 
 /* ===== stage layout scale ===== */
 const stageWrap = document.getElementById('stage-wrap');
@@ -20,13 +11,40 @@ const stage = document.getElementById('stage');
 function layoutScale() {
   const sw = stageWrap.clientWidth;
   const sh = stageWrap.clientHeight;
-  const scale = Math.min(sw / DESIGN_W, sh / DESIGN_H);
-  stage.style.transform = `scale(${scale})`;
-  const offsetX = (sw - DESIGN_W * scale) / 2;
-  const offsetY = (sh - DESIGN_H * scale) / 2;
-  stage.style.left = `${offsetX}px`;
-  stage.style.top = `${offsetY}px`;
-  stage.style.position = 'absolute';
+  
+  // Check if mobile device (less than 768px width)
+  const isMobile = window.innerWidth < 768;
+  
+  if (isMobile) {
+    // For mobile, scale to fit with padding
+    const padding = 20; // 20px buffer on each side
+    const availableWidth = sw - (padding * 2);
+    const availableHeight = sh - (padding * 2);
+    
+    // Calculate scale to fit within available space
+    let scale = Math.min(availableWidth / DESIGN_W, availableHeight / DESIGN_H);
+    
+    // Apply additional scaling for better visibility, but not too much
+    scale = scale * 1.2; // 20% larger instead of 50%
+    
+    stage.style.transform = `scale(${scale})`;
+    const offsetX = (sw - DESIGN_W * scale) / 2;
+    const offsetY = (sh - DESIGN_H * scale) / 2;
+    stage.style.left = `${offsetX}px`;
+    stage.style.top = `${offsetY}px`;
+    stage.style.position = 'absolute';
+    document.documentElement.style.setProperty('--stage-scale', String(scale));
+  } else {
+    // Desktop scaling remains the same
+    let scale = Math.min(sw / DESIGN_W, sh / DESIGN_H);
+    stage.style.transform = `scale(${scale})`;
+    const offsetX = (sw - DESIGN_W * scale) / 2;
+    const offsetY = (sh - DESIGN_H * scale) / 2;
+    stage.style.left = `${offsetX}px`;
+    stage.style.top = `${offsetY}px`;
+    stage.style.position = 'absolute';
+    document.documentElement.style.setProperty('--stage-scale', String(scale));
+  }
 }
 window.addEventListener('resize', layoutScale);
 layoutScale();
@@ -111,6 +129,9 @@ const musicModal  = document.getElementById('musicOverlay');
 const musicGrid   = document.getElementById('musicGrid');
 const musicError  = document.getElementById('musicError');
 const artistChips = document.getElementById('artistChips');
+const dropdownBtn = document.getElementById('artistDropdownBtn');
+const dropdownMenu = document.getElementById('artistDropdownMenu');
+const dropdownText = document.querySelector('.dropdown-text');
 
 let musicData = [];
 let activeArtist = 'all';
@@ -126,20 +147,22 @@ function unique(list, key) {
 function renderMusic() {
   if (!musicData.length) return;
 
-  // Artist chips
-const artists = unique(musicData, 'artist');
+  // Artist chips and dropdown for mobile
+  const artists = unique(musicData, 'artist');
   const allArtists = [...artists, 'thugbrains'];
   const sortedArtists = [...new Set(allArtists)].sort((a, b) => {
     if (a === 'inutech') return -1;
     if (b === 'inutech') return 1;
     return a.localeCompare(b);
   });
+  
+  // Desktop artist chips
   artistChips.innerHTML = '';
-sortedArtists.forEach(name => {
+  sortedArtists.forEach(name => {
     const btn = document.createElement('button');
     btn.className = 'chip';
     btn.textContent = name;
-btn.dataset.artist = name;
+    btn.dataset.artist = name;
     const hasSongs = musicData.some(song => Array.isArray(song.artist) ? song.artist.includes(name) : song.artist === name);
     if (!hasSongs) btn.classList.add('missing');
     if (name === activeArtist) btn.classList.add('active');
@@ -151,6 +174,33 @@ btn.dataset.artist = name;
     });
     artistChips.appendChild(btn);
   });
+  
+  // Mobile dropdown - only populate if elements exist
+  if (dropdownMenu) {
+    // Clear existing items except "All"
+    const existingItems = dropdownMenu.querySelectorAll('.dropdown-item:not([data-artist="all"])');
+    existingItems.forEach(item => item.remove());
+    
+    // Add artist items
+    sortedArtists.forEach(name => {
+      const item = document.createElement('button');
+      item.className = 'dropdown-item';
+      item.textContent = name;
+      item.dataset.artist = name;
+      const hasSongs = musicData.some(song => Array.isArray(song.artist) ? song.artist.includes(name) : song.artist === name);
+      if (!hasSongs) item.classList.add('missing');
+      if (name === activeArtist) item.classList.add('active');
+      
+      item.addEventListener('click', () => {
+        activeArtist = name;
+        updateDropdownSelection();
+        closeDropdown();
+        drawGrid();
+      });
+      
+      dropdownMenu.appendChild(item);
+    });
+  }
 
   drawGrid();
 }
@@ -196,7 +246,23 @@ const body = document.createElement('div');
       body.className = 'card-body';
       const title = document.createElement('div');
       title.className = 'card-title';
-      title.textContent = item.title;
+      
+      // On mobile, remove featured artist info from titles
+      let displayTitle = item.title;
+      if (window.innerWidth < 768) {
+        // Special case for Borderline (Chase T. Remix)
+        if (displayTitle === 'Borderline (Chase T. Remix)') {
+          displayTitle = 'Borderline (Remix)';
+        } else {
+          // Remove everything after and including "(feat."
+          const featIndex = displayTitle.indexOf('(feat.');
+          if (featIndex !== -1) {
+            displayTitle = displayTitle.substring(0, featIndex).trim();
+          }
+        }
+      }
+      
+      title.textContent = displayTitle;
 
       const bottom = document.createElement('div');
       bottom.className = 'card-bottom';
@@ -255,7 +321,10 @@ const body = document.createElement('div');
     });
 
   musicGrid.appendChild(fragment);
-  requestAnimationFrame(() => hydrateCovers());
+  requestAnimationFrame(() => {
+    hydrateCovers();
+    alignAlbumToTopRowRight();
+  });
 }
 
 async function loadMusic() {
@@ -311,29 +380,115 @@ async function loadMusic() {
 document.getElementById('musicFilters').addEventListener('click', (e)=>{
   const btn = e.target.closest('.chip');
   if (!btn) return;
-  if (btn.dataset.filter === 'all') {
-    activeArtist = 'all'; activeType = null;
-    document.querySelectorAll('#musicFilters .chip').forEach(c=>c.classList.remove('active'));
-    btn.classList.add('active');
-    renderMusic();
-    return;
-  }
   if (btn.dataset.type) {
     const t = btn.dataset.type;
+    // Toggle type filter; when none selected, show all by default
     activeType = (activeType === t) ? null : t;
     document.querySelectorAll('#musicFilters .chip[data-type]').forEach(c=>c.classList.remove('active'));
     if (activeType) btn.classList.add('active');
     drawGrid();
   }
 });
-
 if (musicLink) {
   musicLink.addEventListener('click', (e) => {
     e.preventDefault();
     openOverlay(musicModal);
     if (!musicData.length) loadMusic();
+    // Initialize dropdown state
+    updateDropdownSelection();
+    // Align once the overlay is visible
+    requestAnimationFrame(alignAlbumToTopRowRight);
   });
 }
+
+// Dropdown helper functions
+function updateDropdownSelection() {
+  // Update button text
+  if (dropdownText) {
+    dropdownText.textContent = activeArtist === 'all' ? 'All Artists' : activeArtist;
+  }
+  
+  // Update active state for all dropdown items
+  if (dropdownMenu) {
+    dropdownMenu.querySelectorAll('.dropdown-item').forEach(item => {
+      item.classList.remove('active');
+      if ((item.dataset.artist === 'all' && activeArtist === 'all') ||
+          (item.dataset.artist === activeArtist)) {
+        item.classList.add('active');
+      }
+    });
+  }
+}
+
+function closeDropdown() {
+  if (dropdownMenu) {
+    dropdownMenu.classList.remove('show');
+  }
+  if (dropdownBtn) {
+    dropdownBtn.classList.remove('active');
+  }
+}
+
+function toggleDropdown() {
+  if (dropdownMenu && dropdownBtn) {
+    const isOpen = dropdownMenu.classList.contains('show');
+    if (isOpen) {
+      closeDropdown();
+    } else {
+      dropdownMenu.classList.add('show');
+      dropdownBtn.classList.add('active');
+    }
+  }
+}
+
+// Add dropdown toggle event listener
+if (dropdownBtn) {
+  dropdownBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleDropdown();
+  });
+}
+
+// Add "All" option click handler
+if (dropdownMenu) {
+  const allItem = dropdownMenu.querySelector('.dropdown-item[data-artist="all"]');
+  if (allItem) {
+    allItem.addEventListener('click', () => {
+      activeArtist = 'all';
+      updateDropdownSelection();
+      closeDropdown();
+      drawGrid();
+      // Also update desktop chips
+      document.querySelectorAll('#artistChips .chip').forEach(c => c.classList.remove('active'));
+    });
+  }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  if (dropdownMenu && dropdownMenu.classList.contains('show') && 
+      !e.target.closest('.artist-dropdown')) {
+    closeDropdown();
+  }
+});
+
+/* ===== chipbar alignment: Album right edge == last card of top row right edge ===== */
+function alignAlbumToTopRowRight() {
+  try {
+    const chipbar = document.getElementById('musicFilters');
+    if (!chipbar || !musicGrid) return;
+    
+    // Always use full width to prevent shifting between tabs
+    chipbar.style.width = '100%';
+    chipbar.style.overflowX = 'hidden';
+  } catch (_) {}
+}
+
+// Keep alignment responsive while the overlay is open
+window.addEventListener('resize', () => {
+  const ov = document.getElementById('musicOverlay');
+  if (ov && ov.classList.contains('show')) alignAlbumToTopRowRight();
+});
 
 /* ===== cover hydration ===== */
 async function fetchSpotifyThumb(url) {
@@ -507,8 +662,140 @@ if (documentLink) {
     playLottieCenter(
       animPath(file),
       { loop:false, maxMs:1600 },
-      () => openOverlay(documentModal)
+      () => {
+        openOverlay(documentModal);
+        // Initialize document viewer interactions on first open
+        if (!documentModal.dataset.init) {
+          initDocumentViewer();
+          documentModal.dataset.init = '1';
+        }
+      }
     );
+  });
+}
+
+// Document viewer: handle YouTube/year filter buttons and view toggling
+function initDocumentViewer() {
+  const viewer = document.querySelector('#documentOverlay .document-viewer');
+  if (!viewer) return;
+  const buttonsWrap = viewer.querySelector('.viewer-buttons');
+  const youtubeView = document.getElementById('youtube-view');
+  const yearView = document.getElementById('year-view');
+  const yearContent = yearView ? yearView.querySelector('.year-content') : null;
+
+  // YouTube player wiring
+  const prevBtn = document.getElementById('prevVideo');
+  const nextBtn = document.getElementById('nextVideo');
+  const titleEl = document.getElementById('videoTitle');
+  const indexEl = document.getElementById('videoIndex');
+
+  // Load a YouTube playlist by ID
+  const PLAYLIST_ID = 'PLm5FujTiTzRNTL4fbPC6bP3ymlLqGAe80';
+  let ytPlayer = null;
+
+  function updateIndexUi() {
+    try {
+      const length = ytPlayer && ytPlayer.getPlaylist ? ytPlayer.getPlaylist()?.length || 0 : 0;
+      const idx = ytPlayer && ytPlayer.getPlaylistIndex ? (ytPlayer.getPlaylistIndex() + 1) : 0;
+      if (indexEl) indexEl.textContent = length ? `${idx} / ${length}` : '';
+    } catch {
+      if (indexEl) indexEl.textContent = '';
+    }
+  }
+  function updateTitleUi() {
+    try {
+      const data = ytPlayer && ytPlayer.getVideoData ? ytPlayer.getVideoData() : null;
+      if (titleEl) titleEl.textContent = (data && data.title) ? data.title : 'Ready';
+    } catch {}
+  }
+
+  function onPrev() { try { ytPlayer && ytPlayer.previousVideo && ytPlayer.previousVideo(); } catch {} }
+  function onNext() { try { ytPlayer && ytPlayer.nextVideo && ytPlayer.nextVideo(); } catch {} }
+
+  function bindNavButtons() {
+    if (prevBtn && !prevBtn.dataset.bound) { prevBtn.addEventListener('click', onPrev); prevBtn.dataset.bound = '1'; }
+    if (nextBtn && !nextBtn.dataset.bound) { nextBtn.addEventListener('click', onNext); nextBtn.dataset.bound = '1'; }
+  }
+
+  function createPlayerWhenReady() {
+    // Wait for YouTube IFrame API to be ready
+    if (window.YT && YT.Player) {
+      ytPlayer = new YT.Player('youtube-player', {
+        width: '100%', height: '100%',
+        playerVars: {
+          rel: 0,
+          modestbranding: 1,
+          color: 'white',
+          listType: 'playlist',
+          list: PLAYLIST_ID
+        },
+        events: {
+          onReady: () => {
+            // Autoplay may be blocked; UI will still initialize
+            updateIndexUi();
+            updateTitleUi();
+          },
+          onStateChange: () => { updateIndexUi(); updateTitleUi(); }
+        }
+      });
+    } else {
+      setTimeout(createPlayerWhenReady, 100);
+    }
+  }
+
+  function setActiveButton(btn) {
+    buttonsWrap.querySelectorAll('.viewer-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+  }
+  function showYouTube() {
+    if (youtubeView) youtubeView.style.display = '';
+    if (yearView) yearView.style.display = 'none';
+  }
+  function showYear(year) {
+    if (youtubeView) youtubeView.style.display = 'none';
+    if (yearView) yearView.style.display = '';
+    if (yearContent) yearContent.innerHTML = `<p>Content for ${year} coming soon…</p>`;
+  }
+
+  // Default to YouTube on init and prepare player
+  showYouTube();
+  const defaultBtn = buttonsWrap.querySelector('.viewer-btn[data-view="youtube"]');
+  setActiveButton(defaultBtn);
+  bindNavButtons();
+  createPlayerWhenReady();
+
+  buttonsWrap.addEventListener('click', (e) => {
+    const btn = e.target.closest('.viewer-btn');
+    if (!btn) return;
+    if (btn.dataset.view === 'youtube') {
+      showYouTube();
+      setActiveButton(btn);
+      return;
+    }
+    if (btn.dataset.year) {
+      showYear(btn.dataset.year);
+      setActiveButton(btn);
+      return;
+    }
+  });
+}
+
+/* ===== Guest Book overlay ===== */
+const guestBookLink = document.getElementById('guestBookLink');
+const guestBookModal = document.getElementById('guestBookOverlay');
+if (guestBookLink && guestBookModal) {
+  guestBookLink.addEventListener('click', (e) => { 
+    e.preventDefault(); 
+    
+    // Reset animation by forcing a reflow
+    const book = document.querySelector('.open-book');
+    if (book) {
+      book.style.animation = 'none';
+      book.offsetHeight; // Force reflow
+      book.style.animation = '';
+    }
+    
+    openOverlay(guestBookModal); 
   });
 }
 
@@ -599,48 +886,55 @@ const artistsTrack  = document.getElementById('artistsTrack');
 
 /* Edit bios here. File names must match files in assets/characters/ */
 const ARTISTS = [
-  { file: 'akin inaj.png',       name: 'akin inaj',       bio: 'artist/producer. orca collective. singles include “x cited”, “stuck!”, “sinner’s sorry bones”.' },
-  { file: 'vera yvan.png',       name: 'vera yvan',       bio: 'rapper/producer. 2025 singles: “protection spell”, “oef”, “superstar grim reaper”.' },
-  { file: 'inutech.png',         name: 'inutech',         bio: 'producer/engineer. album “sort of light*”. collaborations across orca.' },
-  { file: 'mt saint michael.png',name: 'mt saint michael',bio: 'composer. album “broadway nightlights” (2024).' },
-  { file: 'june takateru.png',   name: 'june takateru',   bio: 'singer/songwriter (formerly james). 2025 singles: “medicine”, “i need you to know”.' },
-  { file: 'leonardo joseph.png', name: 'leonardo joseph', bio: 'visual/music artist. 2023 “power+” single pack.' },
-  { file: 'mr fremon.png',       name: 'mr fremon',       bio: 'rapper/producer. 2025 project “voice messages”.' },
-  { file: 'oxylone.png',         name: 'oxylone',         bio: 'artist.' },
-  { file: 'thugbrains.png',      name: 'thugbrains',      bio: 'artist/producer.' },
-  { file: 'eidah.png',           name: 'eidah',           bio: 'artist.' },
-  { file: 'brandon layfield.png',name: 'brandon layfield',bio: 'artist.' }
+  { file: 'inutech.png',         name: 'inutech',         bio: 'a dream for sleeping dogs, those who may never wake. inutech' },
+  { file: 'akin inaj.png',       name: 'akin inaj',       bio: 'akin inaj makes whatever the fuck they want. christened with an insatiable desire to create. they are obsessed with curation, direction, and self expression (art)+. diluting oneself to a consumable object/experience (product)+ is at the core of their pursuit, while the process is the lifeblood. formative years spent online, akin inaj was molded by the relationships they built. this along with consumption molded their understanding of art+. their relationship blossomed unconsciously, and as though guided by an unseen hand the decision was made, a life of art awaits. experience their consummation. + signals product: what regretfully must be sold to subsist. art: all mediums (movies, design, paint, music. etc.)' },
+  { file: 'brandon layfield.png',name: 'brandon layfield',bio: 'full time frog queen, part time bad bitch, producer, artist, anything you need me to be.' },
+  { file: 'eidah.png',           name: 'eidah',           bio: 'a curious spirit wandering from coast to coast, in search of the world\'s wonders. recording the life and times they experience, in hopes of rekindling the radiance of human nature.' },
+  { file: 'june takateru.png',   name: 'james takateru',   bio: 'floating in the space between dream and reality, james takateru is a project encompassing many mediums based in new york city. their work ranges audio and visual — but always focusing on taking the inspiration from the many creative worlds around them into their own. from rock and indie to pop and electronic, from ink and collage to pixel and vector, continually building inwards to create something new.' },
+  { file: 'leonardo joseph.png', name: 'leonardo joseph', bio: 'leonardojosv is an artist from tampa, fl attempting to push the boundaries of what pop music can be by finding inspiration in many different genres and anything that makes sound.' },
+  { file: 'mr fremon.png',       name: 'mr fremon',       bio: 'i put chords and patterns into fl and makes shit' },
+  { file: 'mt saint michael.png',name: 'mt saint michael',bio: '"mt saint michael" is the current recording project of lucas grant, of philadelphia, pa. conceived as a way to bring the sounds of ambient and avant garde music to a more accessible space, mt saint michael sees grant\'s experimental production style blended with vulnerable songwriting inspired as much by contemporary folk as it is by rock and pop hits of the early 2000s. the result is a fresh and unique take on electronic pop music, as much a part of the current meta as it is detached from it. grant also works extensively as a record producer for other artists—primarily in the orca manifold—and moonlights as a dj. you can contact him at luciferiantower@gmail.com with any inquiries or questions.' },
+  { file: 'oxylone.png',         name: 'oxylone',         bio: 'oxylone lives and breathes in the extra-real. blurring the lines between reality and the abstract; digital and physical. he communicates psychological experiences through his own visceral visual vocabulary. his work seeks to ensnare, at least for a moment. it reaches out from unknown corners and crevices, peeking into the psyche and rendering its home a driveling mass of tissue. lives and breathes in the extra-real. blurring the lines between reality and the abstract; digital and physical. he communicates psychological experiences through his own visceral visual vocabulary. his work seeks to ensnare, at least for a moment. it reaches out from unknown corners and crevices, peeking into the psyche and rendering its home a driveling mass of tissue.' },
+  { file: 'thugbrains.png',      name: 'thugbrains',      bio: 'animator. producer. kung fu panda enthusiast. pew pew explosion' },
+  { file: 'vera yvan.png',       name: 'vera yvan',       bio: 'taking hip-hop\'s penchant for remixing, reinventing, and reimagining, vera yvan constantly shifts and alters any perceptible boundary necessary to communicate a world of ideas and emotions. whether it be through music, film, creative direction, or art existing in both the physical and digital, the project is constantly working & collaborating towards a fully fleshed and realized vision without compromise.' }
 ];
 
 function buildArtistsSlides() {
   if (!artistsTrack) return;
   artistsTrack.innerHTML = '';
+  const isMobile = window.innerWidth < 768;
+
   ARTISTS.forEach(a => {
     const slide = document.createElement('div');
     slide.className = 'slide';
 
-    const head = document.createElement('div');
-    head.className = 'slide-head';
-
     const img = document.createElement('img');
     img.className = 'portrait';
-    img.alt = `${a.name}`;
+    img.alt = a.name;
     img.src = `assets/characters/${a.file}`;
 
     const title = document.createElement('div');
     title.className = 'slide-title';
     title.textContent = a.name;
 
-    head.appendChild(img);
-    head.appendChild(title);
-
     const bio = document.createElement('div');
     bio.className = 'slide-bio';
     bio.textContent = a.bio || '';
 
-    slide.appendChild(head);
-    slide.appendChild(bio);
-
+    if (isMobile) {
+      // Mobile structure: Title -> Image -> Bio
+      slide.appendChild(title);
+      slide.appendChild(img);
+      slide.appendChild(bio);
+    } else {
+      // Desktop structure: Image | (Title + Bio)
+      const textContent = document.createElement('div');
+      textContent.className = 'slide-content';
+      textContent.appendChild(title);
+      textContent.appendChild(bio);
+      slide.appendChild(img);
+      slide.appendChild(textContent);
+    }
     artistsTrack.appendChild(slide);
   });
 }
@@ -666,28 +960,53 @@ function enableCarouselInteractions(trackEl) {
   trackEl.addEventListener('pointercancel', end);
   trackEl.addEventListener('pointerleave', end);
 
-  // wheel => horizontal on the track
-  // Snap-by-card on wheel (smooth, stable)
-  let wheelAccum = 0;
-  const cardWidth = () => {
-    const first = trackEl.querySelector('.slide');
-    if (!first) return trackEl.clientWidth * 0.8;
-    const w = first.getBoundingClientRect().width;
-    const gap = parseFloat(getComputedStyle(trackEl).gap || '16');
-    return w + gap;
+  // wheel => horizontal on the track, one slide at a time
+  let isScrolling = false;
+  const scrollToSlide = (direction) => {
+    if (isScrolling) return;
+    isScrolling = true;
+    
+    const slides = Array.from(trackEl.querySelectorAll('.slide'));
+    const trackRect = trackEl.getBoundingClientRect();
+    const trackCenter = trackRect.left + trackRect.width / 2;
+    
+    // Find the current slide (closest to center)
+    let currentIndex = 0;
+    let minDistance = Infinity;
+    slides.forEach((slide, index) => {
+      const slideRect = slide.getBoundingClientRect();
+      const slideCenter = slideRect.left + slideRect.width / 2;
+      const distance = Math.abs(slideCenter - trackCenter);
+      if (distance < minDistance) {
+        minDistance = distance;
+        currentIndex = index;
+      }
+    });
+    
+    // Calculate target index with wrapping
+    let targetIndex = currentIndex + direction;
+    
+    // Wrap around: if we go past the end, loop to beginning
+    if (targetIndex >= slides.length) {
+      targetIndex = 0;
+    } else if (targetIndex < 0) {
+      targetIndex = slides.length - 1;
+    }
+    
+    // Scroll to target slide
+    if (targetIndex !== currentIndex && slides[targetIndex]) {
+      slides[targetIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+    }
+    
+    setTimeout(() => { isScrolling = false; }, 600);
   };
-  const WHEEL_STEP_MULT = 1.8; // moderate speed
-  const snapTo = (dir) => {
-    const step = cardWidth() * WHEEL_STEP_MULT;
-    trackEl.scrollBy({ left: dir * step, behavior: 'smooth' });
-  };
+  
   const wheelToHorizontal = (e) => {
-    const delta = Math.abs(e.deltaX) < Math.abs(e.deltaY) ? e.deltaY : e.deltaX;
-    wheelAccum += delta;
-    const threshold = 40;
-    if (wheelAccum >= threshold) { snapTo(+1); wheelAccum = 0; }
-    else if (wheelAccum <= -threshold) { snapTo(-1); wheelAccum = 0; }
     e.preventDefault();
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (Math.abs(delta) > 10) {
+      scrollToSlide(delta > 0 ? 1 : -1);
+    }
   };
   trackEl.addEventListener('wheel', wheelToHorizontal, { passive: false });
 
@@ -696,9 +1015,8 @@ function enableCarouselInteractions(trackEl) {
   // arrow keys
   document.addEventListener('keydown', (e) => {
     if (!artistsModal.classList.contains('show')) return;
-    const step = trackEl.clientWidth * 0.8;
-    if (e.key === 'ArrowRight') trackEl.scrollBy({ left: +step, behavior: 'smooth' });
-    if (e.key === 'ArrowLeft')  trackEl.scrollBy({ left: -step, behavior: 'smooth' });
+    if (e.key === 'ArrowRight') scrollToSlide(1);
+    if (e.key === 'ArrowLeft') scrollToSlide(-1);
   });
 }
 
@@ -829,4 +1147,466 @@ if (artistsLink) {
       bgMusic.play().catch(() => {});
     }
   });
+})();
+
+/* ===== Custom Cursor functionality ===== */
+(function initCustomCursor() {
+  // Check if device is mobile - if so, don't create custom cursor
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+  if (isMobile) return;
+  
+  // Create cursor element
+  const cursor = document.createElement('div');
+  cursor.className = 'custom-cursor';
+  cursor.innerHTML = '<img src="assets/Cursor.png" alt="">';
+  document.body.appendChild(cursor);
+  
+  // Track mouse position
+  let mouseX = 0;
+  let mouseY = 0;
+  let cursorX = 0;
+  let cursorY = 0;
+  
+  // Update cursor position with smooth animation
+  function updateCursor() {
+    // Smooth cursor movement
+    const dx = mouseX - cursorX;
+    const dy = mouseY - cursorY;
+    
+    cursorX += dx * 1; // Set to 1 for instant following (no delay)
+    cursorY += dy * 1;
+    
+    cursor.style.transform = `translate(${cursorX}px, ${cursorY}px)`;
+    
+    requestAnimationFrame(updateCursor);
+  }
+  
+  // Mouse move handler
+  document.addEventListener('mousemove', (e) => {
+    // Offset to position fingertip at cursor
+    // Adjust these values to match where the fingertip is in your image
+    const offsetX = -180; // Move left (negative) or right (positive)
+    const offsetY = -10; // Move up (negative) or down (positive)
+    
+    mouseX = e.clientX + offsetX;
+    mouseY = e.clientY + offsetY;
+    
+    // Show cursor when mouse moves
+    cursor.style.opacity = '1';
+  });
+  
+  // Hide cursor when mouse leaves window
+  document.addEventListener('mouseleave', () => {
+    cursor.style.opacity = '0';
+  });
+  
+  // Start animation loop
+  updateCursor();
+  
+  // Add hover effects for interactive elements
+  const interactiveElements = 'a, button, input, textarea, .hotspot, .chip, .card, .comment, .vote-btn, .filter-btn, .nav-btn, .viewer-btn, .close-btn';
+  
+  document.addEventListener('mouseover', (e) => {
+    if (e.target.closest(interactiveElements)) {
+      cursor.classList.add('hover');
+    }
+  });
+  
+  document.addEventListener('mouseout', (e) => {
+    if (e.target.closest(interactiveElements)) {
+      cursor.classList.remove('hover');
+    }
+  });
+})();
+
+/* ===== Guestbook functionality ===== */
+(function initGuestbook() {
+  // Storage key for guestbook data
+  const STORAGE_KEY = 'orca-guestbook';
+  
+  // Get elements
+  const mailingForm = document.getElementById('mailingForm');
+  const guestForm = document.getElementById('guestForm');
+  const commentsDisplay = document.getElementById('commentsDisplay');
+  const filterBtns = document.querySelectorAll('.filter-btn');
+  const prevPageBtn = document.getElementById('prevPage');
+  const nextPageBtn = document.getElementById('nextPage');
+  const pageInfo = document.getElementById('pageInfo');
+  const mailingStatus = document.getElementById('mailingStatus');
+  
+  // State
+  let comments = [];
+  let currentSort = 'recent';
+  let currentPage = 1;
+  let userVotes = {}; // Track user votes to prevent duplicate voting
+  let commentsPerPage = 3; // Will be calculated dynamically
+  
+  // Load data from localStorage
+  function loadComments() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY);
+      if (data) {
+        const parsed = JSON.parse(data);
+        comments = parsed.comments || [];
+        userVotes = parsed.userVotes || {};
+      }
+    } catch (e) {
+      console.warn('Could not load guestbook data:', e);
+      comments = [];
+      userVotes = {};
+    }
+  }
+  
+  // Save data to localStorage
+  function saveComments() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        comments,
+        userVotes
+      }));
+    } catch (e) {
+      console.warn('Could not save guestbook data:', e);
+    }
+  }
+  
+  // Remove prewritten samples: no-op function retained for compatibility
+  function addSampleComments() {}
+  
+  // Format timestamp for display
+  function formatTimestamp(timestamp) {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / (1000 * 60));
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return new Date(timestamp).toLocaleDateString();
+  }
+  
+  // Sort comments based on current sort method
+  function sortComments(commentsToSort) {
+    const sorted = [...commentsToSort];
+    switch (currentSort) {
+      case 'recent':
+        return sorted.sort((a, b) => b.timestamp - a.timestamp);
+      case 'oldest':
+        return sorted.sort((a, b) => a.timestamp - b.timestamp);
+      case 'liked':
+        return sorted.sort((a, b) => (b.likes - b.dislikes) - (a.likes - a.dislikes));
+      default:
+        return sorted;
+    }
+  }
+  
+  // Create comment HTML element
+  function createCommentElement(comment) {
+    const commentEl = document.createElement('div');
+    commentEl.className = 'comment';
+    commentEl.dataset.id = comment.id;
+    
+    const userLiked = userVotes[comment.id] === 'like';
+    const userDisliked = userVotes[comment.id] === 'dislike';
+    
+    commentEl.innerHTML = `
+      <div class="comment-header">
+        <span class="comment-author">${escapeHtml(comment.name)}</span>
+        <span class="comment-date">${formatTimestamp(comment.timestamp)}</span>
+      </div>
+      <div class="comment-text">${escapeHtml(comment.message)}</div>
+      <div class="comment-actions">
+        <button class="vote-btn like-btn ${userLiked ? 'liked' : ''}" data-action="like" data-id="${comment.id}">
+          <span>❤️</span> <span>${comment.likes}</span>
+        </button>
+        <button class="vote-btn dislike-btn ${userDisliked ? 'disliked' : ''}" data-action="dislike" data-id="${comment.id}">
+          <span>👎</span> <span>${comment.dislikes}</span>
+        </button>
+      </div>
+    `;
+    
+    return commentEl;
+  }
+  
+  // Escape HTML to prevent XSS
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  // Calculate how many comments fit on a page
+  function calculateCommentsPerPage() {
+    if (!commentsDisplay) return 4;
+    
+    const displayHeight = commentsDisplay.offsetHeight;
+    // Estimate comment height - reduced to fit 4 comments better
+    const estimatedCommentHeight = 100;
+    const calculatedPerPage = Math.floor(displayHeight / estimatedCommentHeight);
+    
+    // Default to 4 comments per page for optimal display
+    return Math.max(3, Math.min(4, calculatedPerPage));
+  }
+  
+  // Display comments for current page
+  function displayComments() {
+    if (!commentsDisplay) return;
+    
+    // Recalculate comments per page
+    commentsPerPage = calculateCommentsPerPage();
+    
+    const sortedComments = sortComments(comments);
+    const totalPages = Math.ceil(sortedComments.length / commentsPerPage);
+    
+    // Ensure current page is valid
+    if (currentPage > totalPages && totalPages > 0) {
+      currentPage = totalPages;
+    }
+    if (currentPage < 1) {
+      currentPage = 1;
+    }
+    
+    const startIndex = (currentPage - 1) * commentsPerPage;
+    const endIndex = startIndex + commentsPerPage;
+    const commentsToShow = sortedComments.slice(startIndex, endIndex);
+    
+    // Clear and populate comments display
+    commentsDisplay.innerHTML = '';
+    
+    if (commentsToShow.length === 0) {
+      commentsDisplay.innerHTML = '<div class="no-comments">No messages yet. Be the first to sign!</div>';
+    } else {
+      commentsToShow.forEach(comment => {
+        commentsDisplay.appendChild(createCommentElement(comment));
+      });
+    }
+    
+    // Update page info and navigation buttons
+    if (pageInfo) {
+      pageInfo.textContent = totalPages > 0 ? `Page ${currentPage} of ${totalPages}` : 'Page 1';
+    }
+    
+    if (prevPageBtn) {
+      prevPageBtn.disabled = currentPage <= 1;
+    }
+    
+    if (nextPageBtn) {
+      nextPageBtn.disabled = currentPage >= totalPages || totalPages === 0;
+    }
+    
+  }
+  
+  // Handle voting
+  function handleVote(commentId, action) {
+    const comment = comments.find(c => c.id === commentId);
+    if (!comment) return;
+    
+    const previousVote = userVotes[commentId];
+    
+    // Remove previous vote if it exists
+    if (previousVote === 'like') {
+      comment.likes = Math.max(0, comment.likes - 1);
+    } else if (previousVote === 'dislike') {
+      comment.dislikes = Math.max(0, comment.dislikes - 1);
+    }
+    
+    // Apply new vote if different from previous
+    if (previousVote !== action) {
+      if (action === 'like') {
+        comment.likes++;
+        userVotes[commentId] = 'like';
+      } else if (action === 'dislike') {
+        comment.dislikes++;
+        userVotes[commentId] = 'dislike';
+      }
+    } else {
+      // Remove vote if clicking same button
+      delete userVotes[commentId];
+    }
+    
+    saveComments();
+    displayComments();
+  }
+  
+  // Handle comment form submission
+  if (guestForm) {
+    guestForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const formData = new FormData(guestForm);
+      const name = formData.get('name')?.trim();
+      const message = formData.get('note')?.trim();
+      
+      if (!name || !message) {
+        alert('Please fill in both name and message.');
+        return;
+      }
+      
+      if (message.length > 500) {
+        alert('Message is too long. Please keep it under 500 characters.');
+        return;
+      }
+      
+      // Add new comment
+      const newComment = {
+        id: Date.now(),
+        name,
+        message,
+        timestamp: Date.now(),
+        likes: 0,
+        dislikes: 0
+      };
+      
+      comments.push(newComment);
+      saveComments();
+      
+      // Reset form and refresh display
+      guestForm.reset();
+      currentPage = 1; // Go to first page to show new comment
+      displayComments();
+      
+      // Show success message
+      const successMsg = document.createElement('div');
+      successMsg.className = 'success-message';
+      successMsg.textContent = 'Thank you for signing the guestbook!';
+      successMsg.style.cssText = 'color: #28a745; font-size: 12px; margin-top: 8px; text-align: center;';
+      
+      const existingSuccess = guestForm.querySelector('.success-message');
+      if (existingSuccess) {
+        existingSuccess.remove();
+      }
+      
+      guestForm.appendChild(successMsg);
+      setTimeout(() => successMsg.remove(), 3000);
+    });
+    
+    // Handle Enter key in textarea - prevent default behavior and submit form
+    const noteTextarea = guestForm.querySelector('textarea[name="note"]');
+    if (noteTextarea) {
+      noteTextarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          const submitBtn = guestForm.querySelector('button[type="submit"]');
+          if (submitBtn) submitBtn.click();
+        }
+      });
+    }
+  }
+  
+  // Handle mailing list form submission
+  if (mailingForm && mailingStatus) {
+    mailingForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const formData = new FormData(mailingForm);
+      const name = formData.get('name')?.trim();
+      const email = formData.get('email')?.trim();
+      
+      if (!name || !email) {
+        mailingStatus.textContent = 'Please fill in both fields.';
+        mailingStatus.style.color = '#dc3545';
+        return;
+      }
+      
+      // Simple email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        mailingStatus.textContent = 'Please enter a valid email address.';
+        mailingStatus.style.color = '#dc3545';
+        return;
+      }
+      
+      // Simulate successful signup
+      mailingForm.reset();
+      mailingStatus.textContent = 'Thank you for joining our mailing list!';
+      mailingStatus.style.color = '#28a745';
+      
+      setTimeout(() => {
+        mailingStatus.textContent = '';
+      }, 5000);
+    });
+    
+    // Handle Enter key in email input - submit form
+    const emailInput = mailingForm.querySelector('input[name="email"]');
+    if (emailInput) {
+      emailInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const submitBtn = mailingForm.querySelector('button[type="submit"]');
+          if (submitBtn) submitBtn.click();
+        }
+      });
+    }
+  }
+  
+  // Handle filter button clicks
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      // Update active filter button
+      filterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      // Update current sort and refresh display
+      currentSort = btn.dataset.sort;
+      currentPage = 1;
+      displayComments();
+    });
+  });
+  
+  // Handle pagination
+  if (prevPageBtn) {
+    prevPageBtn.addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage--;
+        displayComments();
+      }
+    });
+  }
+  
+  if (nextPageBtn) {
+    nextPageBtn.addEventListener('click', () => {
+      const totalPages = Math.ceil(comments.length / commentsPerPage);
+      if (currentPage < totalPages) {
+        currentPage++;
+        displayComments();
+      }
+    });
+  }
+  
+  
+  // Handle vote button clicks (event delegation)
+  if (commentsDisplay) {
+    commentsDisplay.addEventListener('click', (e) => {
+      if (e.target.closest('.vote-btn')) {
+        const btn = e.target.closest('.vote-btn');
+        const action = btn.dataset.action;
+        const commentId = parseInt(btn.dataset.id);
+        
+        if (action && commentId) {
+          handleVote(commentId, action);
+        }
+      }
+    });
+  }
+  
+  // Initialize guestbook
+  loadComments();
+  // If the only existing items are the previous sample names, clear them once
+  try {
+    const onlySamples = comments.length > 0 && comments.length <= 5 && comments.every(c => ['Alex','Sam','Jordan'].includes(c.name));
+    if (onlySamples) { comments = []; userVotes = {}; saveComments(); }
+  } catch {}
+  displayComments();
+  
+  // Recalculate comments per page on window resize
+  window.addEventListener('resize', () => {
+    const oldCommentsPerPage = commentsPerPage;
+    commentsPerPage = calculateCommentsPerPage();
+    if (oldCommentsPerPage !== commentsPerPage) {
+      displayComments();
+    }
+  });
+  
 })();
