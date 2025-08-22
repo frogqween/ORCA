@@ -1341,13 +1341,20 @@ html, body { margin:0; padding:0; height:100%; overflow:hidden; color:#111;
 }
 #walkmanFx .dust { position:absolute; left:var(--x,0px); top:var(--y,0px); width:3px; height:3px; background: currentColor; border-radius:50%; opacity:.85; pointer-events:none; animation: dustFall var(--dur,900ms) ease-out forwards; will-change: transform, opacity; filter: grayscale(100%) blur(.4px); }
 @keyframes dustFall { 0% { opacity:.85; transform: translate3d(0,0,0) scale(1);} 100% { opacity:0; transform: translate3d(var(--dx,0px), var(--dy,220px), 0) scale(.6);} }
-@media (max-width: 767px) {
+@media (max-width: 1180px) {
   #musicOverlay .music-layout { grid-template-columns: 1fr; height:auto; }
   #musicOverlay .walkman-panel { display:none; }
 }
 
-/* Right column grid sizing to preserve cassette size at 50% width */
-#musicOverlay .music-content .music-grid { grid-template-columns: repeat(3, minmax(280px, 1fr)) !important; max-height: none !important; overflow: visible !important; position:relative; z-index:1; }
+/* Right column grid sizing to preserve cassette size and prevent cropping. Use auto-fit to step 3->2->1 based on available width. */
+#musicOverlay .music-content .music-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important; max-height: none !important; overflow: visible !important; position:relative; z-index:1; }
+/* When the Walkman is visible (two-column layout), the right pane gets ~50% width.
+   Below ~1752px viewport width, 3×280px cards + gaps won't fit; force 2 columns. */
+@media (max-width: 1751px) and (min-width: 768px) {
+  #musicOverlay .music-layout > .music-content > #musicGrid.music-grid {
+    grid-template-columns: repeat(2, minmax(280px, 1fr)) !important;
+  }
+}
 
 /* Filter bar: single-line, full-width. Artist chips scroll horizontally if overflow */
 .chipbar { display:flex; flex-wrap:nowrap; align-items:center; gap:8px; width:100%; overflow:hidden; -webkit-appearance:none; appearance:none; padding:2px 0; min-height:44px; }
