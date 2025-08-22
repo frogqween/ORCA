@@ -1324,7 +1324,7 @@ html, body { margin:0; padding:0; height:100%; overflow:hidden; color:#111;
 .chip.missing { background-color: #ffcccc; color: #ff0000; }
 .chip-sep { width:1px; height:18px; background:#e6e6e6; margin:0 8px; border-radius:1px; }
 /* Hide scrollbar visually but keep scrolling */
-.music-grid { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; max-height:min(68vh,720px); overflow:auto; padding-right:4px; scrollbar-width:none; -ms-overflow-style:none; }
+ .music-grid { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; max-height:min(68vh,720px); overflow:auto; padding-top:8px; padding-right:4px; scrollbar-width:none; -ms-overflow-style:none; }
 .music-grid::-webkit-scrollbar { display:none; }
 .card { border:1px solid #eee; border-radius:12px; overflow:hidden; background:#fff; display:flex; flex-direction:column; height:320px; }
 .cover-wrap { width:100%; aspect-ratio:1/1; background:#f4f4f4; overflow:hidden; }
@@ -1416,6 +1416,10 @@ transform: scale(calc(var(--stage-scale, 0.6) * 1.5));
   background: transparent;
   border: none;
   overflow: hidden; /* ensure nothing spills outside the cassette bounds */
+  /* subtle hover motion */
+  --hover-raise: 6px;
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+  will-change: transform;
 }
 
 /* Safe content area inside the cassette frame */
@@ -1460,6 +1464,17 @@ transform: scale(calc(var(--stage-scale, 0.6) * 1.5));
 #musicOverlay .music-grid .card.card-light .btn-sm { color: #2b2b2b; }
 #musicOverlay .music-grid .card.card-light .btn-sm { border-color: #ccc; background: #fafafa; }
 #musicOverlay .music-grid .card.card-light .btn-sm:hover { background: #f0f0f0; }
+
+/* Hover lift for pointer devices */
+@media (hover: hover) and (pointer: fine) {
+  #musicOverlay .music-grid .card:hover {
+    transform: translateY(calc(-1 * var(--hover-raise))) scale(1.005);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+  }
+  #musicOverlay .music-grid .card:active {
+    transform: translateY(calc(-1 * var(--hover-raise) / 2)) scale(1.002);
+  }
+}
 
 /* Ensure desktop override doesn't force a fixed height */
 @media (min-width: 768px) {
