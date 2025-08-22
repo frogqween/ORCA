@@ -139,6 +139,123 @@ let activeType = null;
 let coverCache = new Map();
 let loadingCovers = new Map();
 
+// Compute cassette case aspect ratio from the actual PNG so cards match it exactly
+const CASSETTE_SRC = 'assets/Cassette Case.png';
+(function setCassetteAspect() {
+  try {
+    const img = new Image();
+    img.src = CASSETTE_SRC;
+    img.onload = function () {
+      const w = img.naturalWidth || 2;
+      const h = img.naturalHeight || 3;
+      document.documentElement.style.setProperty('--cassette-w', String(w));
+      document.documentElement.style.setProperty('--cassette-h', String(h));
+    };
+  } catch (_) { /* no-op */ }
+})();
+
+// ===== Dominant color extraction (best-effort; falls back to white on CORS) =====
+function getDominantColorFromImage(img) {
+  return new Promise((resolve) => {
+    try {
+      const w = 32, h = 32;
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      // Draw scaled down to normalize sampling
+      ctx.drawImage(img, 0, 0, w, h);
+      let data;
+      try {
+        data = ctx.getImageData(0, 0, w, h).data;
+      } catch (e) {
+        // Tainted canvas (no CORS) -> not possible
+        resolve(null);
+        return;
+      }
+      const hist = new Map();
+      for (let i = 0; i < data.length; i += 4) {
+        const a = data[i + 3];
+        if (a < 128) continue; // skip mostly transparent
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        // Skip near-white and near-black to avoid plastic glare and shadows
+        const avg = (r + g + b) / 3;
+        if (avg > 245 || avg < 15) continue;
+        // Quantize to 16 levels per channel to reduce noise
+        const rq = r >> 4, gq = g >> 4, bq = b >> 4;
+        const key = (rq << 8) | (gq << 4) | bq;
+        hist.set(key, (hist.get(key) || 0) + 1);
+      }
+      if (hist.size === 0) {
+        resolve(null);
+        return;
+      }
+      // Pick the most frequent bin (dominant color)
+      let bestKey = null, bestCount = -1;
+      for (const [k, c] of hist.entries()) { if (c > bestCount) { bestCount = c; bestKey = k; } }
+      const rq = (bestKey >> 8) & 0xF, gq = (bestKey >> 4) & 0xF, bq = bestKey & 0xF;
+      // Map back to 0..255 range by centering each bin
+      const r = (rq << 4) + 8, g = (gq << 4) + 8, b = (bq << 4) + 8;
+      resolve(`rgb(${r}, ${g}, ${b})`);
+    } catch (e) {
+      resolve(null);
+    }
+  });
+}
+
+// Parse CSS color strings to RGB
+function parseColorToRGB(color) {
+  if (!color) return null;
+  if (color.startsWith('rgb')) {
+    const m = color.match(/rgba?\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+    if (m) return { r: +m[1], g: +m[2], b: +m[3] };
+  }
+  if (color[0] === '#') {
+    let r, g, b;
+    if (color.length === 4) {
+      r = parseInt(color[1] + color[1], 16);
+      g = parseInt(color[2] + color[2], 16);
+      b = parseInt(color[3] + color[3], 16);
+    } else if (color.length === 7) {
+      r = parseInt(color.slice(1, 3), 16);
+      g = parseInt(color.slice(3, 5), 16);
+      b = parseInt(color.slice(5, 7), 16);
+    }
+    if (Number.isFinite(r)) return { r, g, b };
+  }
+  return null;
+}
+function srgbToLinear(c) { c = c / 255; return (c <= 0.04045) ? (c / 12.92) : Math.pow((c + 0.055) / 1.055, 2.4); }
+function relativeLuminanceRGB(r, g, b) { const R = srgbToLinear(r), G = srgbToLinear(g), B = srgbToLinear(b); return 0.2126 * R + 0.7152 * G + 0.0722 * B; }
+function isDarkColor(color) {
+  const rgb = parseColorToRGB(color);
+  if (!rgb) return false; // default to light
+  const L = relativeLuminanceRGB(rgb.r, rgb.g, rgb.b);
+  return L < 0.5; // threshold; tweak if needed
+}
+function applyCardTextContrast(cardEl, color) {
+  if (isDarkColor(color)) {
+    cardEl.classList.add('card-dark');
+    cardEl.classList.remove('card-light');
+  } else {
+    cardEl.classList.add('card-light');
+    cardEl.classList.remove('card-dark');
+  }
+}
+
+async function applyCardBackgroundFromCover(cardEl, imgEl) {
+  try {
+    const color = await getDominantColorFromImage(imgEl);
+    const bg = color || '#ffffff';
+    const inner = cardEl.querySelector('.card-inner') || cardEl;
+    inner.style.backgroundColor = bg;
+    applyCardTextContrast(cardEl, bg);
+  } catch (_) {
+    const inner = cardEl.querySelector('.card-inner') || cardEl;
+    inner.style.backgroundColor = '#ffffff';
+    applyCardTextContrast(cardEl, '#ffffff');
+  }
+}
+
 function unique(list, key) {
   const allValues = list.flatMap(x => x[key]).filter(Boolean);
   return [...new Set(allValues)];
@@ -227,18 +344,30 @@ function drawGrid() {
       const card = document.createElement('div');
       card.className = 'card';
 
+      // Inner safe area that respects cassette frame padding
+      const inner = document.createElement('div');
+      inner.className = 'card-inner';
+
       const cover = document.createElement('div');
       cover.className = 'cover-wrap';
 
       const img = document.createElement('img');
       img.alt = `${item.title} cover`;
       img.id = `cover-${idx}`;
+      // Allow color extraction from cross-origin images when possible
+      img.crossOrigin = 'anonymous';
+      img.referrerPolicy = 'no-referrer';
 
       if (item.cover) img.src = item.cover; // direct URL (optional)
 
       img.dataset.spotify = item.spotify || '';
       img.dataset.apple   = item.apple || '';
       img.dataset.q       = `${item.artist||''} ${item.title||''}`.trim();
+
+      // Set default background to white and try to update on load
+      inner.style.backgroundColor = '#ffffff';
+      applyCardTextContrast(card, '#ffffff');
+      img.addEventListener('load', () => applyCardBackgroundFromCover(card, img));
 
       cover.appendChild(img);
 
@@ -315,8 +444,9 @@ const body = document.createElement('div');
 
       body.appendChild(title);
       body.appendChild(bottom);
-      card.appendChild(cover);
-      card.appendChild(body);
+      inner.appendChild(cover);
+      inner.appendChild(body);
+      card.appendChild(inner);
       fragment.appendChild(card);
     });
 
@@ -593,6 +723,13 @@ async function hydrateCovers() {
       if (!url) url = await fetchAppleThumb(ap, q);
 
       img.src = url || FALLBACK_SVG;
+
+      // Try to re-apply dominant color when real art loads (may be CORS-limited)
+      if (img.complete && img.naturalWidth > 0) {
+        applyCardBackgroundFromCover(img.closest('.card'), img);
+      } else {
+        img.addEventListener('load', () => applyCardBackgroundFromCover(img.closest('.card'), img), { once: true });
+      }
       
       // Add lazy loading for offscreen images
       if ('loading' in HTMLImageElement.prototype) {
