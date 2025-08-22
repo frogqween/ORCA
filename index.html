@@ -175,35 +175,31 @@
   <!-- Music overlay -->
   <div id="musicOverlay" class="overlay hidden" aria-hidden="true">
     <div class="overlay-card overlay-wide">
-      <button class="close-btn" data-close aria-label="Close music">×</button>
-      <div class="music-header">
-        <h2 class="overlay-title">Music</h2>
-        <div class="artist-dropdown-container">
-          <button class="artist-dropdown-btn" id="artistDropdownBtn">
-            <span class="dropdown-text">All Artists</span>
-            <svg class="dropdown-arrow" width="12" height="8" viewBox="0 0 12 8">
-              <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" stroke-width="2" fill="none"/>
-            </svg>
-          </button>
-          <div class="artist-dropdown-menu" id="artistDropdownMenu">
-            <button class="dropdown-item active" data-artist="all">All</button>
-            <!-- Artist items will be populated here by JavaScript -->
+      <div id="musicTopBar" class="music-topbar">
+        <div class="topbar-title">Music</div>
+        <div id="musicFilters" class="chipbar">
+          <button class="chip-nav chip-nav-left" id="chipsLeft" aria-hidden="true" aria-label="scroll left">‹</button>
+          <div id="artistChips" class="chip-group"></div>
+          <button class="chip-nav chip-nav-right" id="chipsRight" aria-label="scroll right">›</button>
+          <div class="chip-sep"></div>
+          <div class="type-filters">
+            <button class="chip" data-type="Single">Single</button>
+            <button class="chip" data-type="EP">EP</button>
+            <button class="chip" data-type="Album">Album</button>
           </div>
         </div>
+        <button class="topbar-close" data-close aria-label="Close music">×</button>
       </div>
-
-      <div id="musicFilters" class="chipbar">
-        <div id="artistChips" class="chip-group"></div>
-        <div class="chip-sep"></div>
-        <div class="type-filters">
-          <button class="chip" data-type="Single">Single</button>
-          <button class="chip" data-type="EP">EP</button>
-          <button class="chip" data-type="Album">Album</button>
-        </div>
+      <div class="music-layout">
+        <aside class="walkman-panel">
+          <img id="walkmanImage" src="assets/Open Walkman.png" alt="Walkman" />
+          <div id="walkmanFx" aria-hidden="true"></div>
+        </aside>
+        <section class="music-content">
+          <div id="musicGrid" class="music-grid"></div>
+          <div id="musicError" class="muted hidden">Could not load music list.</div>
+        </section>
       </div>
-
-      <div id="musicGrid" class="music-grid"></div>
-      <div id="musicError" class="muted hidden">Could not load music list.</div>
     </div>
   </div>
 
@@ -305,6 +301,9 @@
   
   <!-- Background music -->
   <audio id="bgMusic" preload="auto" src="assets/Inu_Inu_Chiptune.mp3" loop></audio>
+  
+  <!-- Track preview audio -->
+  <audio id="trackPreview" preload="none"></audio>
   
   <!-- Music player controls -->
   <div id="musicPlayer" class="music-player">

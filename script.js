@@ -67,14 +67,23 @@ function openOverlay(el) { el.classList.add('show'); }
 function closeOverlay(el) { el.classList.remove('show'); }
 
 document.querySelectorAll('.overlay [data-close]').forEach(btn => {
-  btn.addEventListener('click', () => closeOverlay(btn.closest('.overlay')));
+  btn.addEventListener('click', () => {
+    const ov = btn.closest('.overlay');
+    if (ov && ov.id === 'musicOverlay') resetPreview();
+    closeOverlay(ov);
+  });
 });
 document.querySelectorAll('.overlay').forEach(ov => {
-  ov.addEventListener('click', (e) => { if (e.target === ov) closeOverlay(ov); });
+  ov.addEventListener('click', (e) => {
+    if (e.target === ov) {
+      if (ov.id === 'musicOverlay') resetPreview();
+      closeOverlay(ov);
+    }
+  });
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    document.querySelectorAll('.overlay.show').forEach(ov => closeOverlay(ov));
+    document.querySelectorAll('.overlay.show').forEach(ov => { if (ov.id === 'musicOverlay') resetPreview(); closeOverlay(ov); });
     hideLottie();
   }
 });
@@ -132,6 +141,8 @@ const artistChips = document.getElementById('artistChips');
 const dropdownBtn = document.getElementById('artistDropdownBtn');
 const dropdownMenu = document.getElementById('artistDropdownMenu');
 const dropdownText = document.querySelector('.dropdown-text');
+const walkmanImage = document.getElementById('walkmanImage');
+const trackPreview = document.getElementById('trackPreview');
 
 let musicData = [];
 let activeArtist = 'all';
@@ -256,8 +267,13 @@ async function applyCardBackgroundFromCover(cardEl, imgEl) {
   }
 }
 
+function coerceArray(v) {
+  if (Array.isArray(v)) return v.filter(Boolean).map(String);
+  if (v == null) return [];
+  return [String(v)];
+}
 function unique(list, key) {
-  const allValues = list.flatMap(x => x[key]).filter(Boolean);
+  const allValues = list.flatMap(x => coerceArray(x[key]));
   return [...new Set(allValues)];
 }
 
@@ -362,12 +378,38 @@ function drawGrid() {
 
       img.dataset.spotify = item.spotify || '';
       img.dataset.apple   = item.apple || '';
-      img.dataset.q       = `${item.artist||''} ${item.title||''}`.trim();
+      const artistQuery = Array.isArray(item.artist) ? item.artist.join(' ') : (item.artist || '');
+      const cleanTitle = (item.title || '')
+        .replace(/\(.*?\)/g, '')           // remove parenthetical parts
+        .replace(/feat\.[^)]+/ig, '')        // remove feat. ...
+        .replace(/&/g, ' and ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      img.dataset.q       = `${artistQuery} ${cleanTitle}`.trim();
 
       // Set default background to white and try to update on load
       inner.style.backgroundColor = '#ffffff';
       applyCardTextContrast(card, '#ffffff');
       img.addEventListener('load', () => applyCardBackgroundFromCover(card, img));
+
+      // Play 30s preview on cover click when available
+      img.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!trackPreview) return;
+        const appleUrl = img.dataset.apple || '';
+        const q = img.dataset.q || '';
+        const preview = await fetchApplePreview(appleUrl, q);
+        if (!preview) return;
+        try {
+          if (trackPreview.src === preview && !trackPreview.paused) {
+            trackPreview.pause();
+            return;
+          }
+          trackPreview.src = preview;
+          await trackPreview.play();
+        } catch (_) {}
+      });
 
       cover.appendChild(img);
 
@@ -507,22 +549,48 @@ async function loadMusic() {
 }
 
 // Filter bar
-document.getElementById('musicFilters').addEventListener('click', (e)=>{
+const musicFiltersEl = document.getElementById('musicFilters');
+musicFiltersEl.addEventListener('click', (e)=>{
+  // type chip clicks
   const btn = e.target.closest('.chip');
-  if (!btn) return;
-  if (btn.dataset.type) {
+  if (btn && btn.dataset.type) {
     const t = btn.dataset.type;
-    // Toggle type filter; when none selected, show all by default
     activeType = (activeType === t) ? null : t;
     document.querySelectorAll('#musicFilters .chip[data-type]').forEach(c=>c.classList.remove('active'));
     if (activeType) btn.classList.add('active');
     drawGrid();
+    return;
+  }
+  // chip row arrows
+  const left = e.target.closest('#chipsLeft');
+  const right= e.target.closest('#chipsRight');
+  if (left || right) {
+    const scroller = document.getElementById('artistChips');
+    if (!scroller) return;
+    const delta = scroller.clientWidth * 0.8 * (left ? -1 : 1);
+    scroller.scrollBy({ left: delta, behavior: 'smooth' });
   }
 });
+// show/hide chip row nav arrows depending on scroll position
+(function initChipRowNav(){
+  const scroller = document.getElementById('artistChips');
+  const left = document.getElementById('chipsLeft');
+  const right = document.getElementById('chipsRight');
+  if (!scroller || !left || !right) return;
+  function update(){
+    const maxScroll = scroller.scrollWidth - scroller.clientWidth;
+    left.setAttribute('aria-hidden', scroller.scrollLeft <= 4 ? 'true' : 'false');
+    right.setAttribute('aria-hidden', scroller.scrollLeft >= maxScroll - 4 ? 'true' : 'false');
+  }
+  scroller.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  update();
+})();
 if (musicLink) {
   musicLink.addEventListener('click', (e) => {
     e.preventDefault();
     openOverlay(musicModal);
+    resetPreview(); // ensure Walkman shows open and no preview is playing
     if (!musicData.length) loadMusic();
     // Initialize dropdown state
     updateDropdownSelection();
@@ -700,6 +768,273 @@ async function fetchAppleThumb(url, qFallback) {
   
   loadingCovers.set(cacheKey, promise);
   return promise;
+}
+
+// Preview cache and helpers
+const previewCache = new Map();
+async function fetchApplePreview(url, qFallback) {
+  const cacheKey = `preview|${url}|${qFallback}`;
+  if (previewCache.has(cacheKey)) return previewCache.get(cacheKey);
+
+  function norm(s='') {
+    return String(s).toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove diacritics
+      .replace(/\s+\([^)]*\)/g, ' ')                   // remove parentheticals
+      .replace(/feat\.[^)]+/g, ' ')
+      .replace(/&/g, ' and ')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ').trim();
+  }
+  function pickBest(results, q) {
+    const nq = norm(q);
+    let best = null, bestScore = -1;
+    for (const r of results) {
+      const nTitle = norm(r.trackName || r.collectionName || '');
+      const nArtist = norm(r.artistName || '');
+      let score = 0;
+      if (nq.includes(nTitle)) score += nTitle.length;
+      if (nq.includes(nArtist)) score += nArtist.length;
+      if ((r.previewUrl || '').length) score += 1000; // ensure previews win
+      if (score > bestScore) { bestScore = score; best = r; }
+    }
+    return best || results[0] || null;
+  }
+
+  const promise = (async () => {
+    try {
+      // Try lookup by explicit Apple ID first
+      const id = parseAppleId(url);
+      if (id) {
+        const data = await jsonp(`https://itunes.apple.com/lookup?id=${id}&country=US`);
+        const r = data && data.results && data.results[0];
+        if (r && r.previewUrl) {
+          previewCache.set(cacheKey, r.previewUrl);
+          return r.previewUrl;
+        }
+      }
+      // Fallback: search by text query
+      if (qFallback) {
+        const data = await jsonp(`https://itunes.apple.com/search?term=${encodeURIComponent(qFallback)}&country=US&media=music&entity=song&limit=5`);
+        const results = (data && data.results) || [];
+        const best = pickBest(results, qFallback);
+        const preview = best && best.previewUrl ? best.previewUrl : '';
+        previewCache.set(cacheKey, preview || '');
+        return preview || '';
+      }
+      previewCache.set(cacheKey, '');
+      return '';
+    } catch (_) {
+      previewCache.set(cacheKey, '');
+      return '';
+    }
+  })();
+
+  previewCache.set(cacheKey, promise);
+  return promise;
+}
+
+// Walkman image fallback handling
+const WALKMAN_OPEN_CANDIDATES = [
+  'assets/Open Walkman.png',
+  'assets/OpenWalkman.png',
+  'assets/OpenWalkman.PNG',
+  'assets/open walkman.png',
+  'assets/Open walkman.png',
+  'assets/OPEN WALKMAN.png'
+];
+const WALKMAN_CLOSED_CANDIDATES = [
+  'assets/Closed Walkman.png',
+  'assets/ClosedWalkman.png',
+  'assets/ClosedWalkman.PNG',
+  'assets/closed walkman.png',
+  'assets/Closed walkman.png',
+  'assets/CLOSED WALKMAN.png'
+];
+let walkmanOpenIndex = 0, walkmanClosedIndex = 0;
+let resolvedOpen = null, resolvedClosed = null;
+const walkmanFx = document.getElementById('walkmanFx');
+let notesInterval = null;
+let noteSeed = 0;
+function spawnNote() {
+  if (!walkmanFx) return;
+  const panel = walkmanFx.offsetParent || walkmanFx.parentElement;
+  const w = walkmanFx.clientWidth || (panel ? panel.clientWidth : 600);
+  const h = walkmanFx.clientHeight || (panel ? panel.clientHeight : 600);
+
+  // Spawn across the full width at the very bottom, push upward
+  const x = Math.random() * Math.max(1, w);
+  const y = Math.max(0, h - 2);
+  const dx = (Math.random() * 120 - 60); // slight horizontal drift
+  const dy = - (h + 120 + Math.random() * 200); // go past the top edge
+
+  // Bigger notes for visibility in a highway stream
+  const size = 28 + Math.random() * 28; // 28px - 56px
+  const rotStart = (Math.random() * 20 - 10);
+  const rotEnd = rotStart + (Math.random() * 90 - 45);
+  const colors = ['#ffffff','#ffe082','#ffd166','#a5d6ff','#f8bbd0','#c3f7c0'];
+  const color = colors[noteSeed++ % colors.length];
+  const dur = 1800 + Math.random() * 1800; // 1.8s - 3.6s
+  const glyphs = ['♪','♫','♩','♬'];
+  const ch = glyphs[Math.floor(Math.random() * glyphs.length)];
+
+  const el = document.createElement('div');
+  el.className = 'note';
+  el.textContent = ch;
+  el.style.setProperty('--x', x + 'px');
+  el.style.setProperty('--y', y + 'px');
+  el.style.setProperty('--dx', dx + 'px');
+  el.style.setProperty('--dy', dy + 'px');
+  el.style.setProperty('--size', size + 'px');
+  el.style.setProperty('--color', color);
+  el.style.setProperty('--rotStart', rotStart + 'deg');
+  el.style.setProperty('--rotEnd', rotEnd + 'deg');
+  el.style.setProperty('--dur', dur + 'ms');
+  el.style.animationDelay = (Math.random() * 80) + 'ms';
+  walkmanFx.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+function spawnBurst(count = 3) { for (let i=0;i<count;i++) spawnNote(); }
+function lanes() {
+  const w = walkmanFx ? walkmanFx.clientWidth : 600;
+  // roughly one note per ~120px width, min 6 lanes
+  return Math.max(6, Math.round(w / 120));
+}
+function startNotes() {
+  if (!walkmanFx || notesInterval) return;
+  // Small delay to ensure layout is correct (closed image set, etc.)
+  setTimeout(() => {
+    spawnBurst(lanes()); // kick-off burst across lanes
+    notesInterval = setInterval(() => spawnBurst(lanes()), 110);
+  }, 120);
+}
+function stopNotes() {
+  if (notesInterval) { clearInterval(notesInterval); notesInterval = null; }
+  // Convert existing notes to falling disintegration, smoothly
+  disperseNotes();
+}
+// Convert all current notes to fall downward and disintegrate (smooth snapshot -> animate)
+function disperseNotes() {
+  if (!walkmanFx) return;
+  const nodes = Array.from(walkmanFx.querySelectorAll('.note'));
+  if (!nodes.length) return;
+
+  const w = walkmanFx.clientWidth || 0;
+  const h = walkmanFx.clientHeight || 0;
+
+  const parseTranslate = (m) => {
+    if (!m || m === 'none') return { x:0, y:0 };
+    const m2 = m.match(/matrix\(([^)]+)\)/);
+    if (m2) {
+      const p = m2[1].split(',').map(parseFloat);
+      return { x: p[4] || 0, y: p[5] || 0 };
+    }
+    const m3 = m.match(/matrix3d\(([^)]+)\)/);
+    if (m3) {
+      const p = m3[1].split(',').map(parseFloat);
+      return { x: p[12] || 0, y: p[13] || 0 };
+    }
+    return { x:0, y:0 };
+  };
+
+  // Snapshot only the notes that are currently visible on screen
+  const snaps = [];
+  nodes.forEach(n => {
+    const cs = getComputedStyle(n);
+    const baseLeft = parseFloat(cs.left) || 0;
+    const baseTop  = parseFloat(cs.top) || 0;
+    const { x:tx, y:ty } = parseTranslate(cs.transform);
+    const nowLeft = baseLeft + tx;
+    const nowTop  = baseTop + ty;
+
+    // Determine visibility: must be within container bounds and not fully transparent/hidden
+    const op = parseFloat(cs.opacity);
+    const visibleOpacity = isNaN(op) ? true : op > 0.08;
+    const displayOk = cs.display !== 'none' && cs.visibility !== 'hidden';
+    const withinBounds = (nowLeft > -24 && nowLeft < w + 24 && nowTop > -24 && nowTop < h + 24);
+
+    if (!(visibleOpacity && displayOk && withinBounds)) return; // skip off-screen or invisible notes
+
+    const fdx = (Math.random() * 80 - 40);
+    const fdy = 220 + Math.random() * 320;
+    const dur = 900 + Math.random() * 1200;
+    const r1 = (Math.random() * 10 - 5);
+    const r2 = r1 + (Math.random() * 26 - 13);
+    snaps.push({ n, nowLeft, nowTop, fdx, fdy, dur, r1, r2, color: cs.color });
+  });
+
+  if (!snaps.length) return; // nothing visible to disperse
+
+  // Freeze selected notes at current position and cancel their current animation
+  snaps.forEach(s => {
+    s.n.style.animation = 'none';
+    s.n.style.left = s.nowLeft + 'px';
+    s.n.style.top  = s.nowTop + 'px';
+    s.n.style.transform = 'translate3d(0,0,0)';
+  });
+
+  // Next frame: trigger the fall animation for smoothness (visible notes only)
+  requestAnimationFrame(() => {
+    snaps.forEach(s => {
+      const n = s.n;
+      n.style.setProperty('--fdx', s.fdx + 'px');
+      n.style.setProperty('--fdy', s.fdy + 'px');
+      n.style.setProperty('--fdur', s.dur + 'ms');
+      n.style.setProperty('--rotStartFall', s.r1 + 'deg');
+      n.style.setProperty('--rotEndFall', s.r2 + 'deg');
+      n.style.setProperty('--startColor', s.color);
+      n.style.animation = 'noteFall var(--fdur) cubic-bezier(.20,.70,.20,1) forwards';
+      // Dust specks (grayscale) — slightly reduced for subtlety
+      const count = 1 + Math.floor(Math.random() * 2); // 1–2 per note
+      for (let i = 0; i < count; i++) {
+        const d = document.createElement('div');
+        d.className = 'dust';
+        d.style.color = '#bdbdbd';
+        d.style.setProperty('--x', (s.nowLeft + (Math.random()*6-3)) + 'px');
+        d.style.setProperty('--y', (s.nowTop + (Math.random()*6-3)) + 'px');
+        d.style.setProperty('--dx', (Math.random()*60 - 30) + 'px');
+        d.style.setProperty('--dy', (140 + Math.random()*200) + 'px');
+        d.style.setProperty('--dur', (450 + Math.random()*800) + 'ms');
+        walkmanFx.appendChild(d);
+        d.addEventListener('animationend', () => d.remove());
+      }
+    });
+  });
+}
+function trySetWalkman(kind) {
+  if (!walkmanImage) return;
+  const arr = kind === 'open' ? WALKMAN_OPEN_CANDIDATES : WALKMAN_CLOSED_CANDIDATES;
+  const idxRef = kind === 'open' ? 'open' : 'closed';
+  let nextIdx = (kind === 'open') ? walkmanOpenIndex : walkmanClosedIndex;
+  const nextSrc = (idxRef === 'open' && resolvedOpen) ? resolvedOpen
+                 : (idxRef === 'closed' && resolvedClosed) ? resolvedClosed
+                 : arr[nextIdx] || arr[0];
+  function onload() {
+    if (idxRef === 'open') resolvedOpen = walkmanImage.src; else resolvedClosed = walkmanImage.src;
+    walkmanImage.onerror = null; walkmanImage.onload = null;
+  }
+  function onerror() {
+    walkmanImage.onerror = null; walkmanImage.onload = null;
+    // advance and try next
+    if (idxRef === 'open') walkmanOpenIndex++; else walkmanClosedIndex++;
+    const i = (idxRef === 'open') ? walkmanOpenIndex : walkmanClosedIndex;
+    if (i < arr.length) {
+      walkmanImage.onerror = onerror; walkmanImage.onload = onload;
+      walkmanImage.src = arr[i];
+    }
+  }
+  walkmanImage.onerror = onerror; walkmanImage.onload = onload;
+  walkmanImage.src = nextSrc;
+}
+function setWalkmanOpen() { trySetWalkman('open'); stopNotes(); }
+function setWalkmanClosed() { trySetWalkman('closed'); startNotes(); }
+function resetPreview() {
+  try { if (trackPreview) { trackPreview.pause(); trackPreview.currentTime = 0; } } catch(_) {}
+  setWalkmanOpen();
+}
+if (trackPreview) {
+  trackPreview.addEventListener('playing', setWalkmanClosed);
+  trackPreview.addEventListener('pause', setWalkmanOpen);
+  trackPreview.addEventListener('ended', setWalkmanOpen);
 }
 
 const FALLBACK_SVG = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="100%" height="100%" fill="%23f3f3f3"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Arial" font-size="24" fill="%23999">No Artwork</text></svg>';

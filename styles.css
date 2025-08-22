@@ -272,29 +272,29 @@ html, body { margin:0; padding:0; height:100%; overflow:hidden; color:#111;
     flex-shrink: 0;
   }
   
-  /* Type filters container - keep on same line */
+  /* Type filters container - compact in topbar */
   .type-filters {
     display: flex;
-    flex-wrap: nowrap; /* Prevent wrapping to keep all on same line */
+    flex-wrap: nowrap;
     gap: 6px;
-    justify-content: center;
-    padding: 8px;
-    background: rgba(240, 240, 240, 0.8);
+    justify-content: flex-start;
+    padding: 0;
+    background: transparent;
     border-radius: 8px;
-    /* Adjust the width/max-width below to control mobile filter bar length */
-    width: 100%; /* Change this to control the filter bar width */
-    max-width: 100%; /* Optional: set max-width if you want to limit it */
+    width: auto;
+    max-width: none;
   }
   
   /* Artist filter section */
   .chipbar {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
     gap: 8px;
     padding: 0;
     background: transparent;
-    margin-bottom: 0;
-    overflow: visible;
+    margin: 0;
+    overflow: hidden;
   }
   
   /* Artist chips container - multi-row wrap */
@@ -312,11 +312,8 @@ html, body { margin:0; padding:0; height:100%; overflow:hidden; color:#111;
     -webkit-overflow-scrolling: touch;
   }
   
-  /* Hide separator and artist chips on mobile */
-  .chip-sep,
-  #artistChips {
-    display: none !important;
-  }
+  /* Keep chips visible on mobile; hide the separator to save space */
+  .chip-sep { display: none; }
   
   /* Chips styling */
   .chip {
@@ -1283,12 +1280,14 @@ html, body { margin:0; padding:0; height:100%; overflow:hidden; color:#111;
 .overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:9998; background:rgba(0,0,0,.25); backdrop-filter:blur(6px); }
 .overlay.show { display:flex; }
 .overlay-card { position:relative; background:#fff; border-radius:12px; box-shadow:0 20px 80px rgba(0,0,0,.25); max-width:min(960px,92vw); max-height:min(86vh,980px); padding:min(2vw,18px); overflow:hidden; }
-.overlay-wide { max-width:min(1200px,96vw); }
+.overlay-wide { max-width:min(2000px,98vw); }
 .overlay-title { margin:0 0 12px; font-size:22px; }
+/* Fixed corner title for Music overlay */
 
 /* Hide artist dropdown on desktop */
 @media (min-width: 768px) {
   .artist-dropdown-container { display: none; }
+  .music-header { display: none !important; } /* remove spacer so filters touch the top */
   /* Fix card title clipping on desktop */
   .card-title { height: auto; min-height: 2.4em; }
   /* Increase card height to prevent link clipping */
@@ -1311,20 +1310,64 @@ html, body { margin:0; padding:0; height:100%; overflow:hidden; color:#111;
 
 /* Music */
 /* Keep the Music modal a consistent window size regardless of filter */
-#musicOverlay .overlay-card { width:min(1000px,94vw); height:min(82vh,920px); overflow-y:auto; overflow-x:hidden; position:relative; }
+#musicOverlay .overlay-card { width:100vw !important; height:100vh !important; max-width:none !important; max-height:none !important; padding:0 !important; border-radius:0 !important; box-shadow:none !important; overflow:hidden !important; position:relative; }
+
+/* Two-column layout: left Walkman, right content */
+#musicOverlay .overlay-card { --topbar-h: 56px; }
+#musicOverlay .music-topbar { position:fixed; top:0; left:0; right:0; z-index:10000; display:flex; align-items:center; gap:12px; height:var(--topbar-h); padding:8px 12px; background:rgba(0,0,0,0.55); backdrop-filter: blur(10px); border-radius:0; }
+#musicOverlay .music-topbar .topbar-title { color:#fff; font-weight:800; font-size:20px; letter-spacing:0.2px; text-shadow:0 2px 4px rgba(0,0,0,0.45); white-space:nowrap; }
+#musicOverlay .music-topbar .chipbar { flex:1 1 auto; margin:0; position:relative; z-index:auto; padding:0 4px; min-height:44px; }
+#musicOverlay .music-topbar .type-filters { background:transparent; padding:0; width:auto; max-width:none; }
+#musicOverlay .topbar-close { margin-left:auto; width:36px; height:36px; border-radius:50%; border:1px solid rgba(255,255,255,0.6); background:rgba(255,255,255,0.12); color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; line-height:1; box-shadow:0 2px 8px rgba(0,0,0,0.25); cursor:none; }
+#musicOverlay .topbar-close:hover { background:rgba(255,255,255,0.22); }
+#musicOverlay .music-layout { display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:stretch; height:calc(100vh - var(--topbar-h)); margin-top:var(--topbar-h); }
+#musicOverlay .walkman-panel { display:flex; align-items:flex-start; justify-content:center; padding:8px 4px; min-height:0; position:relative; }
+#musicOverlay .walkman-panel img { max-height:100%; width:auto; height:auto; max-width:100%; display:block; object-fit:contain; object-position: top center; filter: drop-shadow(0 8px 18px rgba(0,0,0,0.4)); position:relative; z-index:1; }
+#musicOverlay .music-content { display:flex; flex-direction:column; min-width:0; height:100%; margin-top:0; padding-top:4px; padding-bottom:24px; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:none; -ms-overflow-style:none; }
+#musicOverlay .music-content::-webkit-scrollbar { width:0; height:0; }
+/* Walkman notes FX overlay */
+#walkmanFx { position:absolute; inset:0; pointer-events:none; overflow:visible; z-index:0; }
+#walkmanFx .note { position:absolute; left:var(--x,0px); top:var(--y,0px); font-size:var(--size,22px); color:var(--color,#fff); text-shadow:0 2px 6px rgba(0,0,0,0.45); opacity:0; transform:translate3d(0,0,0) scale(.8) rotate(0deg); animation: noteFloat var(--dur,1600ms) cubic-bezier(.22,.61,.36,1) forwards; will-change: transform, opacity; }
+@keyframes noteFloat { 
+  0% { opacity:0; transform: translate(0,0) scale(.8) rotate(var(--rotStart,-10deg)); }
+  10% { opacity:1; }
+  100% { opacity:0; transform: translate(var(--dx,0px), var(--dy,-160px)) scale(1.4) rotate(var(--rotEnd,20deg)); }
+}
+/* Sad fall/disintegrate after music stops */
+@keyframes noteFall {
+  0%   { opacity:.95; transform: translate3d(0,0,0) scale(1) rotate(var(--rotStartFall, 0deg)); filter: grayscale(0%) blur(0px); color: var(--startColor, #ffffff); }
+  60%  { opacity:.62; transform: translate3d(calc(var(--fdx, 0px) * .6), calc(var(--fdy, 220px) * .6), 0) scale(.94) rotate(var(--rotEndFall, 12deg)); filter: grayscale(65%) blur(.5px); color: #d6d6d6; }
+  100% { opacity:0; transform: translate3d(var(--fdx, 0px), var(--fdy, 220px), 0) scale(.86) rotate(var(--rotEndFall, 12deg)); filter: grayscale(100%) blur(1.1px); color: #bebebe; }
+}
+#walkmanFx .dust { position:absolute; left:var(--x,0px); top:var(--y,0px); width:3px; height:3px; background: currentColor; border-radius:50%; opacity:.85; pointer-events:none; animation: dustFall var(--dur,900ms) ease-out forwards; will-change: transform, opacity; filter: grayscale(100%) blur(.4px); }
+@keyframes dustFall { 0% { opacity:.85; transform: translate3d(0,0,0) scale(1);} 100% { opacity:0; transform: translate3d(var(--dx,0px), var(--dy,220px), 0) scale(.6);} }
+@media (max-width: 767px) {
+  #musicOverlay .music-layout { grid-template-columns: 1fr; height:auto; }
+  #musicOverlay .walkman-panel { display:none; }
+}
+
+/* Right column grid sizing to preserve cassette size at 50% width */
+#musicOverlay .music-content .music-grid { grid-template-columns: repeat(3, minmax(280px, 1fr)) !important; max-height: none !important; overflow: visible !important; position:relative; z-index:1; }
+
 /* Filter bar: single-line, full-width. Artist chips scroll horizontally if overflow */
-.chipbar { display:flex; flex-wrap:nowrap; align-items:center; gap:8px; margin-bottom:12px; width:100%; -webkit-appearance:none; appearance:none; }
-#artistChips { flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:8px; flex-wrap:wrap; overflow:hidden; scrollbar-width:none; -ms-overflow-style:none; }
-#artistChips::-webkit-scrollbar { display:none; }
+.chipbar { display:flex; flex-wrap:nowrap; align-items:center; gap:8px; width:100%; overflow:hidden; -webkit-appearance:none; appearance:none; padding:2px 0; min-height:44px; }
+#artistChips { flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:8px; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; white-space:nowrap; scrollbar-width:none; -ms-overflow-style:none; padding:0 32px; }
+#artistChips::-webkit-scrollbar { display:none; height:0; }
 /* Type filters group pinned to the right */
 .type-filters { flex:0 0 auto; display:flex; gap:8px; white-space:nowrap; -webkit-appearance:none; appearance:none; user-select:none; resize:none; }
-.chip { display:inline-flex; align-items:center; border:1px solid #ddd; background:#fafafa; padding:6px 10px; border-radius:999px; cursor:none; font-size:13px; line-height:1; transition:transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease; -webkit-appearance:none; appearance:none; user-select:none; resize:none; -webkit-user-drag:none; -moz-user-drag:none; user-drag:none; }
-.chip.active { background:#111; color:#fff; border-color:#111; }
-.chip:hover { box-shadow:0 6px 16px rgba(0,0,0,0.12); border-color:#bbb; }
-.chip.missing { background-color: #ffcccc; color: #ff0000; }
+.chip { display:inline-flex; align-items:center; border:1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.08); padding:8px 12px; border-radius:12px; cursor:none; font-size:13px; line-height:1; font-weight:800; color:#fff; text-shadow:0 2px 4px rgba(0,0,0,0.45); transition:transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease; -webkit-appearance:none; appearance:none; user-select:none; resize:none; -webkit-user-drag:none; -moz-user-drag:none; user-drag:none; }
+.chip.active { background:#fff; color:#111; border-color:#fff; text-shadow:none; box-shadow:0 6px 18px rgba(0,0,0,0.18); }
+.chip:hover { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.6); transform: translateY(-1px); }
+.chip.missing { opacity: 0.45; }
+/* Chip row nav arrows */
+.chip-nav { position:absolute; top:50%; transform:translateY(-50%); width:26px; height:26px; border-radius:50%; border:1px solid rgba(255,255,255,0.6); background:rgba(0,0,0,0.35); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; line-height:1; cursor:none; z-index:4; box-shadow:0 2px 8px rgba(0,0,0,0.25); }
+.chip-nav:hover { background:rgba(255,255,255,0.18); color:#fff; }
+.chip-nav-left { left:2px; }
+.chip-nav-right { right:2px; }
+.chip-nav[aria-hidden="true"] { visibility:hidden; }
 .chip-sep { width:1px; height:18px; background:#e6e6e6; margin:0 8px; border-radius:1px; }
 /* Hide scrollbar visually but keep scrolling */
- .music-grid { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; max-height:min(68vh,720px); overflow:auto; padding-top:8px; padding-right:4px; scrollbar-width:none; -ms-overflow-style:none; }
+ .music-grid { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; max-height:none; overflow:visible; padding-top:8px; padding-right:0; scrollbar-width:none; -ms-overflow-style:none; }
 .music-grid::-webkit-scrollbar { display:none; }
 .card { border:1px solid #eee; border-radius:12px; overflow:hidden; background:#fff; display:flex; flex-direction:column; height:320px; }
 .cover-wrap { width:100%; aspect-ratio:1/1; background:#f4f4f4; overflow:hidden; }
